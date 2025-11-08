@@ -30,14 +30,13 @@ jobs:
 
             cd /var/www/CubeMoons_Project
 
+            echo "➡️ Giving SSH user temporary ownership for git..."
+            sudo chown -R $USER:$USER /var/www/CubeMoons_Project
+            sudo chmod -R 775 /var/www/CubeMoons_Project
+
             echo "➡️ Pulling latest code..."
             git fetch origin main
             git reset --hard origin/main
-
-            echo "➡️ Fixing permissions for deployment..."
-            # Make sure SSH user can write temporarily
-            sudo chown -R $USER:$USER .
-            sudo chmod -R 775 vendor
 
             echo "➡️ Installing composer dependencies..."
             composer install --no-dev --optimize-autoloader
