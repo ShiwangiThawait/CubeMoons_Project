@@ -1,4 +1,4 @@
-name: 🚀 Deploy Laravel to EC2
+name: Deploy Laravel to EC2
 
 on:
   push:
@@ -10,17 +10,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 🧰 Checkout Code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: 🔑 Setup SSH
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: 🚀 Deploy to EC2
+      - name: Deploy to EC2
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             set -e
@@ -61,6 +61,6 @@ jobs:
             sudo systemctl restart php8.2-fpm
             sudo systemctl restart nginx
 
-            echo "✅ Deployment complete!"
+            echo "Deployment complete!"
           EOF
         shell: /usr/bin/bash -e {0}
