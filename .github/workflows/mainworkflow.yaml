@@ -1,68 +1,40 @@
-name: 🚀 Deploy Laravel to EC2
+- name: Deploy to EC2
+  run: |
+    ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+      set -e
+      trap 'echo "Deployment failed at line $LINENO"; exit 1' ERR
 
-# Trigger deployment only on push to main
-on:
-  push:
-    branches:
-      - main
+      cd /var/www/CubeMoons_Project
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    name: Deploy Laravel App
+      echo "➡️ Temporarily changing ownership for git"
+      sudo chown -R $USER:$USER .
 
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      echo "➡️ Pulling latest code..."
+      git fetch origin main
+      git reset --hard origin/main
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+      echo "➡️ Installing composer dependencies as www-data..."
+      sudo -u www-data composer install --no-dev --optimize-autoloader
 
-      - name: Deploy to EC2
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            set -e
-            trap 'echo "Deployment failed at line $LINENO"; exit 1' ERR
+      echo "➡️ Running migrations..."
+      sudo -u www-data php artisan migrate --force
 
-            echo "==== Deploying Laravel ===="
+      echo "➡️ Clearing caches..."
+      sudo -u www-data php artisan config:clear
+      sudo -u www-data php artisan cache:clear
+      sudo -u www-data php artisan route:clear
+      sudo -u www-data php artisan view:clear
+      sudo -u www-data php artisan optimize
 
-            # Go to project directory
-            cd /var/www/CubeMoons_Project
+      echo "➡️ Restoring ownership and permissions..."
+      sudo chown -R www-data:www-data /var/www/CubeMoons_Project
+      sudo chmod -R 775 storage bootstrap/cache
+      sudo find . -type f -exec chmod 644 {} \;
+      sudo find . -type d -exec chmod 755 {} \;
 
-            # Ensure proper ownership for git
-            sudo chown -R $USER:$USER .
+      echo "➡️ Restarting services..."
+      sudo systemctl restart php8.2-fpm
+      sudo systemctl restart nginx
 
-            echo "➡️ Pulling latest code..."
-            git fetch origin main
-            git reset --hard origin/main
-
-            echo "➡️ Installing Composer dependencies..."
-            sudo -u www-data composer install --no-dev --optimize-autoloader
-
-            echo "➡️ Running database migrations..."
-            sudo -u www-data php artisan migrate --force
-
-            echo "➡️ Clearing and caching configs..."
-            sudo -u www-data php artisan config:clear
-            sudo -u www-data php artisan cache:clear
-            sudo -u www-data php artisan route:clear
-            sudo -u www-data php artisan view:clear
-            sudo -u www-data php artisan optimize
-
-            echo "➡️ Setting permissions..."
-            sudo chown -R www-data:www-data /var/www/CubeMoons_Project
-            sudo chmod -R 775 storage bootstrap/cache
-            sudo find . -type f -exec chmod 644 {} \;
-            sudo find . -type d -exec chmod 755 {} \;
-
-            echo "➡️ Restarting services..."
-            sudo systemctl restart php8.2-fpm
-            sudo systemctl restart nginx
-
-            echo "✅ Deployment complete!"
-          EOF
-        shell: /usr/bin/bash -e {0}
+      echo "✅ Deployment complete!"
+    EOF
