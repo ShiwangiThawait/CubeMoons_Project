@@ -34,8 +34,8 @@ jobs:
             git reset --hard origin/main
 
             echo "➡️ Installing composer dependencies..."
-            composer install --no-dev --optimize-autoloader
-
+            # composer install --no-dev --optimize-autoloader
+            sudo -u www-data composer install --no-dev --optimize-autoloader
             echo "➡️ Running database migrations..."
             php artisan migrate --force
 
