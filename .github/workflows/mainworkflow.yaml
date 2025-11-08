@@ -1,6 +1,5 @@
 name: 🚀 Deploy Laravel to EC2
 
-# Trigger deployment on push to main branch
 on:
   push:
     branches:
@@ -8,15 +7,12 @@ on:
 
 jobs:
   deploy:
-    name: Deploy Laravel App
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout your code
       - name: 🧰 Checkout Code
         uses: actions/checkout@v4
 
-      # 2️⃣ Setup SSH
       - name: 🔑 Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -24,7 +20,6 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      # 3️⃣ Deploy to EC2
       - name: 🚀 Deploy to EC2
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
@@ -35,29 +30,31 @@ jobs:
 
             cd /var/www/CubeMoons_Project
 
-            # Temporarily give SSH user ownership for git pull
-            sudo chown -R $USER:$USER .
-
             echo "➡️ Pulling latest code..."
             git fetch origin main
             git reset --hard origin/main
 
-            echo "➡️ Installing composer dependencies as www-data..."
-            sudo -u www-data composer install --no-dev --optimize-autoloader
+            echo "➡️ Fixing permissions for deployment..."
+            # Make sure SSH user can write temporarily
+            sudo chown -R $USER:$USER .
+            sudo chmod -R 775 vendor
+
+            echo "➡️ Installing composer dependencies..."
+            composer install --no-dev --optimize-autoloader
 
             echo "➡️ Running migrations..."
-            sudo -u www-data php artisan migrate --force
+            php artisan migrate --force
 
             echo "➡️ Clearing caches..."
-            sudo -u www-data php artisan config:clear
-            sudo -u www-data php artisan cache:clear
-            sudo -u www-data php artisan route:clear
-            sudo -u www-data php artisan view:clear
-            sudo -u www-data php artisan optimize
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:clear
+            php artisan view:clear
+            php artisan optimize
 
-            echo "➡️ Setting permissions..."
+            echo "➡️ Setting final permissions..."
             sudo chown -R www-data:www-data /var/www/CubeMoons_Project
-            sudo chmod -R 775 storage bootstrap/cache
+            sudo chmod -R 775 storage bootstrap/cache vendor
             sudo find . -type f -exec chmod 644 {} \;
             sudo find . -type d -exec chmod 755 {} \;
 
