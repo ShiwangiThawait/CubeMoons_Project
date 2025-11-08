@@ -1,0 +1,61 @@
+name:  Laravel Auto Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name:  Deploy to EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
+            trap 'echo "Deployment failed at line $LINENO"' ERR
+
+            echo "==== Deploying Laravel ===="
+
+            cd /var/www/CubeMoons_Project
+
+            echo "➡️ Pulling latest code..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "➡️ Installing composer dependencies..."
+            composer install --no-dev --optimize-autoloader
+
+            echo "➡️ Running database migrations..."
+            php artisan migrate --force
+
+            echo "➡️ Clearing and caching configs..."
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:clear
+            php artisan view:clear
+            php artisan optimize
+
+            echo "➡️ Setting permissions..."
+            sudo chown -R www-data:www-data /var/www/CubeMoons_Project
+            sudo chmod -R 775 storage bootstrap/cache
+            sudo find . -type f -exec chmod 644 {} \;
+            sudo find . -type d -exec chmod 755 {} \;
+
+            echo "➡️ Restarting services..."
+            sudo systemctl restart php8.2-fpm
+            sudo systemctl restart nginx
+
+            echo "Deployment complete!"
+          EOF
+
