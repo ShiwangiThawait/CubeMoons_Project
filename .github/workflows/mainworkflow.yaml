@@ -1,5 +1,6 @@
-name:  Laravel Auto Deploy to EC2
+name: 🚀 Deploy Laravel to EC2
 
+# Trigger deployment only on push to main
 on:
   push:
     branches:
@@ -8,43 +9,49 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    name: Deploy Laravel App
+
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: ⚙️ Setup SSH
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name:  Deploy to EC2
+      - name: Deploy to EC2
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             set -e
-            trap 'echo "Deployment failed at line $LINENO"' ERR
+            trap 'echo "Deployment failed at line $LINENO"; exit 1' ERR
 
             echo "==== Deploying Laravel ===="
 
+            # Go to project directory
             cd /var/www/CubeMoons_Project
+
+            # Ensure proper ownership for git
+            sudo chown -R $USER:$USER .
 
             echo "➡️ Pulling latest code..."
             git fetch origin main
             git reset --hard origin/main
 
-            echo "➡️ Installing composer dependencies..."
-            # composer install --no-dev --optimize-autoloader
+            echo "➡️ Installing Composer dependencies..."
             sudo -u www-data composer install --no-dev --optimize-autoloader
+
             echo "➡️ Running database migrations..."
-            php artisan migrate --force
+            sudo -u www-data php artisan migrate --force
 
             echo "➡️ Clearing and caching configs..."
-            php artisan config:clear
-            php artisan cache:clear
-            php artisan route:clear
-            php artisan view:clear
-            php artisan optimize
+            sudo -u www-data php artisan config:clear
+            sudo -u www-data php artisan cache:clear
+            sudo -u www-data php artisan route:clear
+            sudo -u www-data php artisan view:clear
+            sudo -u www-data php artisan optimize
 
             echo "➡️ Setting permissions..."
             sudo chown -R www-data:www-data /var/www/CubeMoons_Project
@@ -56,6 +63,6 @@ jobs:
             sudo systemctl restart php8.2-fpm
             sudo systemctl restart nginx
 
-            echo "Deployment complete!"
+            echo "✅ Deployment complete!"
           EOF
-
+        shell: /usr/bin/bash -e {0}
